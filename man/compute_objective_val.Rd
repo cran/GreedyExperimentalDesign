@@ -2,19 +2,17 @@
 % Please edit documentation in R/shared.R
 \name{compute_objective_val}
 \alias{compute_objective_val}
-\title{Returns the objective value given a design vector as well an an objective function.
-This is code duplication since this is implemented within Java. This is only to be
-run if...}
+\title{Computes Objective Value From Allocation Vector}
 \usage{
-compute_objective_val(X, indic_T, objective = "abs_sum_diff",
-  inv_cov_X = NULL)
+compute_objective_val(X, indic_T, objective = "abs_sum_diff", inv_cov_X = NULL)
 }
 \arguments{
 \item{X}{The n x p design matrix}
 
 \item{indic_T}{The n-length binary allocation vector}
 
-\item{objective}{The objective function to use. Default is \code{abs_sum_diff}.}
+\item{objective}{The objective function to use. Default is \code{abs_sum_diff} and the other option is 
+\code{mahal_dist}.}
 
 \item{inv_cov_X}{Optional: the inverse sample variance covariance matrix. Use this
 argument if you will be doing many calculations since passing this
@@ -22,8 +20,9 @@ in will cache this data.}
 }
 \description{
 Returns the objective value given a design vector as well an an objective function.
-This is code duplication since this is implemented within Java. This is only to be
-run if...
+This is sometimes duplicated in Java. However, within Java, tricks are played to make
+optimization go faster so Java's objective values may not always be the same as the true
+objective function (e.g. logs or constants dropped).
 }
 \author{
 Adam Kapelner
