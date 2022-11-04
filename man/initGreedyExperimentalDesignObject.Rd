@@ -8,13 +8,15 @@ initGreedyExperimentalDesignObject(
   X = NULL,
   max_designs = 10000,
   objective = "mahal_dist",
+  indicies_pairs = NULL,
   Kgram = NULL,
   wait = FALSE,
   start = TRUE,
   max_iters = Inf,
   semigreedy = FALSE,
   diagnostics = FALSE,
-  num_cores = 1
+  num_cores = 1,
+  seed = NULL
 )
 }
 \arguments{
@@ -31,6 +33,9 @@ using the \code{\link{stopSearch}} method}
 \item{objective}{The objective function to use when searching design space. This is a string
 with valid values "\code{mahal_dist}" (the default), "\code{abs_sum_diff}" or "\code{kernel}".}
 
+\item{indicies_pairs}{A matrix of size $n/2$ times 2 whose rows are indicies pairs. The values of the entire matrix 
+must enumerate all indicies $1, ..., n$. The default is \code{NULL} meaning to use all possible pairs.}
+
 \item{Kgram}{If the \code{objective = kernel}, this argument is required to be an \code{n x n} matrix whose
 entries are the evaluation of the kernel function between subject i and subject j. Default is \code{NULL}.}
 
@@ -46,17 +51,21 @@ for ``no limit.''}
 \code{FALSE} corresponding to the fully greedy approach.}
 
 \item{diagnostics}{Returns diagnostic information about the iterations including (a) the initial starting
-vectors, the switches at every iteration and information about the objective function
-at every iteration (default is \code{FALSE} due to speed concerns).}
+vectors, (b) the switches at every iteration and (c) information about the objective function
+at every iteration (default is \code{FALSE} to decrease the algorithm's run time).}
 
 \item{num_cores}{The number of CPU cores you wish to use during the search. The default is \code{1}.}
+
+\item{seed}{The set to set for deterministic output. This should only be set if \code{num_cores = 1} otherwise
+the output will not be deterministic. Default is \code{NULL} for no seed set.}
 }
 \value{
 An object of type \code{greedy_experimental_design_search} which can be further operated upon
 }
 \description{
 This method creates an object of type greedy_experimental_design and will immediately initiate
-a search through $1_{T}$ space for forced balance designs.
+a search through $1_{T}$ space for forced balance designs. For debugging, you can use set the \code{seed}
+parameter and \code{num_cores = 1} to be assured of deterministic output.
 }
 \examples{
  \dontrun{

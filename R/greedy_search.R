@@ -1,7 +1,8 @@
 #' Begin A Greedy Pair Switching Search
 #' 
 #' This method creates an object of type greedy_experimental_design and will immediately initiate
-#' a search through $1_{T}$ space for forced balance designs.
+#' a search through $1_{T}$ space for forced balance designs. For debugging, you can use set the \code{seed}
+#' parameter and \code{num_cores = 1} to be assured of deterministic output.
 #' 
 #' @param X					The design matrix with $n$ rows (one for each subject) and $p$ columns 
 #' 							(one for each measurement on the subject). This is the design matrix you wish 
@@ -13,6 +14,8 @@
 #' 							using the \code{\link{stopSearch}} method 
 #' @param objective			The objective function to use when searching design space. This is a string
 #' 							with valid values "\code{mahal_dist}" (the default), "\code{abs_sum_diff}" or "\code{kernel}".
+#' @param indicies_pairs	A matrix of size $n/2$ times 2 whose rows are indicies pairs. The values of the entire matrix 
+#' 							must enumerate all indicies $1, ..., n$. The default is \code{NULL} meaning to use all possible pairs.
 #' @param Kgram				If the \code{objective = kernel}, this argument is required to be an \code{n x n} matrix whose
 #' 							entries are the evaluation of the kernel function between subject i and subject j. Default is \code{NULL}.
 #' @param wait				Should the \code{R} terminal hang until all \code{max_designs} vectors are found? The 
@@ -23,9 +26,11 @@
 #' @param max_iters			Should we impose a maximum number of greedy switches? The default is \code{Inf} which a flag 
 #' 							for ``no limit.''
 #' @param diagnostics		Returns diagnostic information about the iterations including (a) the initial starting
-#' 							vectors, the switches at every iteration and information about the objective function
-#' 							at every iteration (default is \code{FALSE} due to speed concerns).
+#' 							vectors, (b) the switches at every iteration and (c) information about the objective function
+#' 							at every iteration (default is \code{FALSE} to decrease the algorithm's run time).
 #' @param num_cores 		The number of CPU cores you wish to use during the search. The default is \code{1}.
+#' @param seed				The set to set for deterministic output. This should only be set if \code{num_cores = 1} otherwise
+#' 							the output will not be deterministic. Default is \code{NULL} for no seed set.
 #' @return					An object of type \code{greedy_experimental_design_search} which can be further operated upon
 #' 
 #' @author Adam Kapelner
@@ -47,18 +52,15 @@ initGreedyExperimentalDesignObject = function(
 		X = NULL, 
 		max_designs = 10000, 
 		objective = "mahal_dist", 
+		indicies_pairs = NULL,
 		Kgram = NULL,
 		wait = FALSE, 
 		start = TRUE,
 		max_iters = Inf,
 		semigreedy = FALSE, 
 		diagnostics = FALSE,
-		num_cores = 1){
-	
-	
-	if (diagnostics && objective != "abs_sum_diff"){
-		stop("Diagnostic output only available with objective type \"abs_sum_diff\".")
-	}
+		num_cores = 1,
+		seed = NULL){
 	
 	if (!is.null(Kgram)){
 		n = nrow(Kgram)
@@ -72,6 +74,11 @@ initGreedyExperimentalDesignObject = function(
 	}
 	verify_objective_function(objective, Kgram, n)
 	
+	if (!is.null(indicies_pairs)){
+		if (!(all.equal(sort(c(indicies_pairs)), 1 : n))){
+			stop("indicies_pairs must cover all indicies 1, 2, ..., n once each.")
+		}
+	}
 	if (objective == "abs_sum_diff"){
 		#standardize it -- much faster here
 		Xstd = standardize_data_matrix(X)
@@ -91,7 +98,13 @@ initGreedyExperimentalDesignObject = function(
 	#now go ahead and create the Java object and set its information
 	java_obj = .jnew("GreedyExperimentalDesign.GreedyExperimentalDesign")
 	.jcall(java_obj, "V", "setMaxDesigns", as.integer(max_designs))
-	.jcall(java_obj, "V", "setNumCores", as.integer(num_cores))
+	.jcall(java_obj, "V", "setNumCores", as.integer(num_cores))	
+	if (!is.null(seed)){
+		.jcall(java_obj, "V", "setSeed", as.integer(seed))
+		if (num_cores != 1){
+			warning("Setting the seed with multiple cores does not guarantee deterministic output.")
+		}		
+	}
 	.jcall(java_obj, "V", "setN", as.integer(n))
 	if (objective != "kernel"){
 		p = ncol(X)
@@ -105,6 +118,12 @@ initGreedyExperimentalDesignObject = function(
 	if (max_iters <= 0){stop("max_iters must be positive")}
 	if (max_iters < Inf){
 		.jcall(java_obj, "V", "setMaxIters", as.integer(max_iters))
+	}
+	
+	if (!is.null(indicies_pairs)){
+		for (i in 1 : (n / 2)){	
+			.jcall(java_obj, "V", "setLegalPair", as.integer(indicies_pairs[i, ] - 1), as.integer(i - 1)) #java indexes from 0...n-1
+		}
 	}
 	
 	#feed in the gram matrix if applicable
@@ -193,9 +212,9 @@ summary.greedy_experimental_design_search = function(object, ...){
 	print(object, ...)
 }
 
-#' Plots a summary of a \code{greedy_experimental_design_search} object
+#' Plots a summary of a greedy search object object
 #' 
-#' @param x			The \code{greedy_experimental_design_search} object to be summarized in the plot
+#' @param x			The greedy search object object to be summarized in the plot
 #' @param ...		Other parameters to pass to the default plot function
 #' @return			An array of order statistics from \link{plot_obj_val_order_statistic} as a list element
 #' 
@@ -240,7 +259,7 @@ plot_obj_val_by_iter = function(res, runs = NULL){
 
 #' Plots an order statistic of the object value as a function of number of searches
 #' 
-#' @param obj			The \code{greedy_experimental_design_search} object whose search history is to be visualized
+#' @param obj			The greedy search object object whose search history is to be visualized
 #' @param order_stat 	The order statistic that you wish to plot. The default is \code{1} for the minimum.
 #' @param skip_every	Plot every nth point. This makes the plot generate much more quickly. The default is \code{5}.
 #' @param type			The type parameter for plot.
@@ -331,13 +350,13 @@ resultsGreedySearch = function(obj, max_vectors = 9, form = "one_zero"){
 			starting_indicTs = (starting_indicTs - 0.5) * 2
 		}
 		switches = .jcall(obj$java_obj, "[[[I", "getSwitchedPairs", as.integer(ordered_indices[1 : last_index] - 1), simplify = TRUE)
-		#we should make switches into a list now
 		xbarj_diffs = .jcall(obj$java_obj, "[[[D", "getXbarjDiffs", as.integer(ordered_indices[1 : last_index] - 1), simplify = TRUE)
 		obj_val_by_iters = .jcall(obj$java_obj, "[[D", "getObjValByIter", as.integer(ordered_indices[1 : last_index] - 1), simplify = TRUE)
 		
 		pct_vec_same = colSums(starting_indicTs == ending_indicTs) / length(starting_indicTs[, 1]) * 100
 	}
 	greedy_experimental_design_search_results = list(
+		ordered_indices = ordered_indices,
 		obj_vals = obj_vals[ordered_indices], 
 		obj_vals_unordered = obj_vals,
 		num_iters = num_iters[ordered_indices], 
@@ -347,21 +366,10 @@ resultsGreedySearch = function(obj, max_vectors = 9, form = "one_zero"){
 		obj_val_by_iters = obj_val_by_iters,
 		pct_vec_same = pct_vec_same,
 		switches = switches,
-		xbarj_diffs = xbarj_diffs
+		xbarj_diffs = xbarj_diffs,
+		last_index = last_index
 	)
 	class(greedy_experimental_design_search_results) = "greedy_experimental_design_search_results"
 	#return the final object
 	greedy_experimental_design_search_results
 }
-
-##' Plots a summary of a \code{greedy_experimental_design_search_results} object
-##' 
-##' @param x			The \code{greedy_experimental_design_search_results} object to be summarized in the plot
-##' @param ...		Other parameters to pass to the default plot function
-##' 
-##' @author 			Adam Kapelner
-##' @method 			plot greedy_experimental_design_search
-##' @export
-#plot.greedy_experimental_design_search_results = function(x, ...){
-#	
-#}
