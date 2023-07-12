@@ -1,3 +1,13 @@
+version 1.5.6.1
+* Faster implementation of complete_randomization_with_forced_balanced, imbalanced_complete_randomization, and imbalanced_block_designs via std::shuffle
+* We now comply with CRAN policy to not change the user's graphical parameters
+
+version 1.5.6
+* Method that calculates asymmetric cost allocation
+* Greedy Pair Switching algorithm that supports unequal number of treatments and controls
+* Imbalanced (unequal allocation) Completely Random Designs
+* Imbalanced (unequal allocation) Block Designs
+
 version 1.5.5
 
 * Speedier implementation of binary pairwise matching designs using Java and Hash functions to check uniqueness

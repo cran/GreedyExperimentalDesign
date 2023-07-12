@@ -1,8 +1,8 @@
 Package: GreedyExperimentalDesign
 Type: Package
 Title: Greedy Experimental Design Construction
-Version: 1.5.5
-Date: 2022-11-09
+Version: 1.5.6.1
+Date: 2023-07-11
 Authors@R: c(
         person("Adam", "Kapelner", email = "kapelner@qc.cuny.edu", role = c("aut", "cre"), comment = c(ORCID = "0000-0001-5985-6792")),
         person("David", "Azriel", email = "davidazr@technion.ac.il", role = "aut"),
@@ -40,15 +40,15 @@ Encoding: UTF-8
 Depends: R (>= 4.1.0), rJava (>= 0.9-6)
 SystemRequirements: Java (>= 7.0)
 LinkingTo: Rcpp
-Imports: Rcpp, checkmate, nbpMatching, survey, stringr, stringi,
+Imports: Rcpp, checkmate, nbpMatching, survey, rlist, stringr, stringi,
         kernlab, graphics, grDevices, stats
 URL: https://github.com/kapelner/GreedyExperimentalDesign
-RoxygenNote: 7.2.1
+RoxygenNote: 7.2.3
 NeedsCompilation: yes
-Packaged: 2022-11-09 18:28:14 UTC; kapel
+Packaged: 2023-07-11 04:42:06 UTC; kapel
 Author: Adam Kapelner [aut, cre] (<https://orcid.org/0000-0001-5985-6792>),
   David Azriel [aut],
   Abba Krieger [aut]
 Maintainer: Adam Kapelner <kapelner@qc.cuny.edu>
 Repository: CRAN
-Date/Publication: 2022-11-17 19:40:02 UTC
+Date/Publication: 2023-07-12 18:30:28 UTC

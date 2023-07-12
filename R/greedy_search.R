@@ -9,6 +9,8 @@
 #' 							to search for a more optimal design. This parameter must be specified unless you
 #' 							choose objective type \code{"kernel"} in which case, the \code{Kgram} parameter must
 #' 							be specified.
+#' @param nT				The number of treatments to assign. Default is \code{NULL} which is for forced balance allocation
+#' 							i.e. nT = nC = n / 2 where n is the number of rows in X (or Kgram if X is unspecified).
 #' @param max_designs 		The maximum number of designs to be returned. Default is 10,000. Make this large 
 #' 							so you can search however long you wish as the search can be stopped at any time by
 #' 							using the \code{\link{stopSearch}} method 
@@ -50,6 +52,7 @@
 #' @export
 initGreedyExperimentalDesignObject = function(
 		X = NULL, 
+		nT = NULL,
 		max_designs = 10000, 
 		objective = "mahal_dist", 
 		indicies_pairs = NULL,
@@ -69,10 +72,16 @@ initGreedyExperimentalDesignObject = function(
 		n = nrow(X)
 		p = ncol(X)
 	}
-	if (n %% 2 != 0){
-		stop("Design matrix must have even rows to have equal treatments and controls")
+	if (is.null(nT)){
+		nT = n / 2
 	}
 	verify_objective_function(objective, Kgram, n)
+	
+	checkCount(nT, positive = TRUE, null.ok = FALSE)
+	
+	if (nT != n / 2 & !is.null(indicies_pairs)){
+		stop("indicies_pairs cannot be specified if nT is not half of n")
+	}
 	
 	if (!is.null(indicies_pairs)){
 		if (!(all.equal(sort(c(indicies_pairs)), 1 : n))){
@@ -88,6 +97,8 @@ initGreedyExperimentalDesignObject = function(
 			SinvX = solve(var(X))
 		}
 	}
+	
+
 	
 	#we are about to construct a GreedyExperimentalDesign java object. First, let R garbage collect
 	#to clean up previous GreedyExperimentalDesign objects that are no longer in use. This is important
@@ -105,12 +116,12 @@ initGreedyExperimentalDesignObject = function(
 			warning("Setting the seed with multiple cores does not guarantee deterministic output.")
 		}		
 	}
-	.jcall(java_obj, "V", "setN", as.integer(n))
 	if (objective != "kernel"){
 		p = ncol(X)
 		.jcall(java_obj, "V", "setP", as.integer(p))
 	}
 	.jcall(java_obj, "V", "setN", as.integer(n))
+	.jcall(java_obj, "V", "setNumTreatments", as.integer(nT))
 	.jcall(java_obj, "V", "setObjective", objective)
 	if (wait){
 		.jcall(java_obj, "V", "setWait")
@@ -222,6 +233,9 @@ summary.greedy_experimental_design_search = function(object, ...){
 #' @method plot greedy_experimental_design_search
 #' @export
 plot.greedy_experimental_design_search = function(x, ...){
+	oldpar <- par(no.readonly = TRUE)    # code line i
+	on.exit(par(oldpar))            # code line i + 1
+	
 	par(mfrow = c(1, 2))
 	
 	progress = greedySearchCurrentProgress(x)
@@ -249,6 +263,9 @@ plot_obj_val_by_iter = function(res, runs = NULL){
 		runs = 1 : min(length(res$obj_val_by_iters), 9)
 	}
 	num_to_plot = length(runs)
+	
+	oldpar <- par(no.readonly = TRUE)    # code line i
+	on.exit(par(oldpar))            # code line i + 1
 	
 	par(mfrow = c(ceiling(sqrt(num_to_plot)), ceiling(sqrt(num_to_plot))))
 	for (run in runs){
@@ -373,3 +390,74 @@ resultsGreedySearch = function(obj, max_vectors = 9, form = "one_zero"){
 	#return the final object
 	greedy_experimental_design_search_results
 }
+
+#' Compute Optimal Number of Treatments/Controls
+#' 
+#' Given a total budget and asymmetric treatment and control costs, calculate the
+#' number of treatments and controls that optimize the variance of the estimator. 
+#' The number of treatments is rounded up by default.
+#' 
+#' @param c_treatment		The cost of a treatment assignment. Default is \code{NULL} for symmetric costs.
+#' @param c_control			The cost of a control assignment. Default is \code{NULL} for symmetric costs.
+#' @param c_total_max		The total cost constraint of any allocation. Either this or \code{n} must be specified. Default is \code{NULL}.
+#' @param n					The total cost constraint as specified by the total number of subjects. Either this or \code{c_total} must be 
+#' 							specified. Default is \code{NULL}.
+#' 
+#' @return					A list with three keys: n, nT, nC plus specified arguments
+#' 
+#' @author Adam Kapelner
+#' @examples
+#'  \dontrun{
+#' 	optimize_asymmetric_treatment_assignment(n = 100) 
+#'  #nT = nC = 50
+#' 	optimize_asymmetric_treatment_assignment(n = 100, c_treatment = 2, c_control = 1) 
+#'  #nT = 66, nC = 34
+#' 	optimize_asymmetric_treatment_assignment(c_total_max = 50, c_treatment = 2, c_control = 1) 
+#' 	}
+#' @export
+optimize_asymmetric_treatment_assignment = function(
+		c_treatment = NULL,
+		c_control = NULL,
+		c_total_max = NULL,
+		n = NULL
+	){
+	if ((is.null(c_total_max) & is.null(n)) | (!is.null(c_total_max) & !is.null(n))){
+		stop("n xor c_total must be specified.")
+	}
+	if (!is.null(n)){
+		if (is.null(c_treatment) & is.null(c_control)){
+			nT = n / 2
+			list(n = n, nT = nT, nC = n - nT)
+		} else {
+			checkNumeric(c_treatment, lower = .Machine$double.xmin, finite = TRUE)
+			checkNumeric(c_control,   lower = .Machine$double.xmin, finite = TRUE)
+			c_const = c_treatment / c_control
+			nT = if (c_treatment > c_control){
+				 	ceiling(n / (1 + sqrt(c_const)))
+		         } else {
+				 	floor(n / (1 + sqrt(c_const)))
+		         }
+		 	nC = n - nT
+		 	c_total = nT * c_treatment + nC * c_control
+		 	list(n = n, nT = nT, nC = nC, c_treatment = c_treatment, c_control = c_control, c_total = c_total)
+		}
+	} else {
+		checkNumeric(c_treatment, lower = .Machine$double.xmin, finite = TRUE)
+		checkNumeric(c_control,   lower = .Machine$double.xmin, finite = TRUE)
+		
+		K_const = c_total_max / c_control
+		c_const = c_treatment / c_control
+		nT = K_const / (c_const + sqrt(c_const))
+		nC = K_const - c_const * nT
+		nT = floor(nT)
+		nC = if (c_const * nT + ceiling(nC) <= K_const){
+					ceiling(nC)
+				} else {
+					floor(nC)
+				}
+		c_total = nT * c_treatment + nC * c_control
+		list(n = nT + nC, nT = nT, nC = nC, c_total = c_total, c_total_max = c_total_max, c_treatment = c_treatment, c_control = c_control)
+	}
+}
+
+
